@@ -21,4 +21,12 @@ var (
 
 	// ErrInvalidHeader is returned when unknown data prefix is found
 	ErrInvalidHeader = errors.New("invalid header")
+
+	// ErrBulkNotEnough is returnd data buffer length is shorter than bulk string expected
+	// This error mpay happens when one independent request/reply is sepetated
+	// into two or more TCP packet
+	ErrBulkNotEnough = errors.New("bulk string not complete")
+
+	// ErrRespData is returned when data breaks the RESP
+	ErrRespData = errors.New("invalid resp data")
 )

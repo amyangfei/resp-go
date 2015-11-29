@@ -26,7 +26,7 @@ func NewDecoder(data []byte) *Decoder {
 }
 
 func (d *Decoder) next(bufmsg *Message) error {
-	lineType, line, err := ParseLine(d.src[d.pos:], true)
+	lineType, line, err := ParseLine(d.src[d.pos:], -1)
 	if err != nil {
 		return err
 	}
@@ -54,6 +54,10 @@ func (d *Decoder) next(bufmsg *Message) error {
 		msg.Type = IntegerHeader
 		msg.Integer, err = strconv.ParseInt(string(line), 10, 64)
 		d.UpdatePos(true, len(line))
+		if err != nil {
+			d.UpdateStartPos(d.pos)
+			return err
+		}
 		d.AppendNewMsg(msg)
 		return nil
 	case BulkHeader:
@@ -70,14 +74,18 @@ func (d *Decoder) next(bufmsg *Message) error {
 			d.AppendNewMsg(msg)
 			return nil
 		}
-		_, bulkstr, err := ParseLine(d.src[d.pos+1+len(line)+2:], false)
+		d.UpdatePos(true, len(line))
+		_, bulkstr, err := ParseLine(d.src[d.pos:], msgLen)
+		d.UpdatePos(false, len(bulkstr))
 		if err != nil {
+			d.UpdateStartPos(d.pos)
 			return err
 		}
 		msg.Type = BulkHeader
 		msg.Bytes = bulkstr
-		d.UpdatePos(true, len(line))
-		d.UpdatePos(false, len(bulkstr))
+		if bufmsg == nil {
+			d.AppendNewMsg(msg)
+		}
 		return nil
 	case ArrayHeader:
 		var arrLen int
@@ -102,7 +110,7 @@ func (d *Decoder) next(bufmsg *Message) error {
 				return err
 			}
 		}
-		if bufmsg != nil {
+		if bufmsg == nil {
 			d.AppendNewMsg(msg)
 		}
 		return nil
@@ -110,9 +118,13 @@ func (d *Decoder) next(bufmsg *Message) error {
 	return ErrInvalidHeader
 }
 
+func (d *Decoder) UpdateStartPos(pos int) {
+	d.msgStartPos = pos
+}
+
 func (d *Decoder) AppendNewMsg(msg *Message) {
 	d.msgQ = append(d.msgQ, msg)
-	d.msgStartPos = d.pos
+	d.UpdateStartPos(d.pos)
 }
 
 func (d *Decoder) UpdatePos(hasHeader bool, msgLen int) {
@@ -124,23 +136,37 @@ func (d *Decoder) UpdatePos(hasHeader bool, msgLen int) {
 
 func Decode(data []byte) ([]*Message, int, error) {
 	d := NewDecoder(data)
-	err := d.next(nil)
-	return d.msgQ, d.msgStartPos, err
+	for d.msgStartPos < len(data) {
+		err := d.next(nil)
+		if err != nil {
+			return d.msgQ, d.msgStartPos, err
+		}
+	}
+	return d.msgQ, d.msgStartPos, nil
 }
 
-// ParseLine find the CRLF and return lineType and line data
-func ParseLine(data []byte, parseHeader bool) (lineType byte, line []byte, err error) {
-	i := bytes.IndexByte(data, LF)
-	if i < 0 || i == 0 {
-		return 0, nil, ErrCrlfNotFound
-	} else if data[i-1] != CR {
-		return 0, nil, ErrCrlfNotFound
-	} else if i == 1 {
-		return 0, nil, ErrEmpayData
-	}
-	if parseHeader {
-		return data[0], data[1 : i-1], nil
+// ParseLine find the CRLF and return lineType and line data.
+// If readLen is no less than zero, we don't parse the header type and read
+// readLen bytes directly and check if \r\n follows.
+func ParseLine(data []byte, readLen int) (lineType byte, line []byte, err error) {
+	if readLen >= 0 {
+		if len(data) < readLen+2 {
+			return 0, nil, ErrBulkNotEnough
+		} else {
+			if data[readLen] != CR || data[readLen+1] != LF {
+				return 0, nil, ErrRespData
+			}
+			return 0, data[:readLen], nil
+		}
 	} else {
-		return 0, data[0 : i-1], nil
+		i := bytes.IndexByte(data, LF)
+		if i < 0 || i == 0 {
+			return 0, nil, ErrCrlfNotFound
+		} else if data[i-1] != CR {
+			return 0, nil, ErrCrlfNotFound
+		} else if i == 1 {
+			return 0, nil, ErrEmpayData
+		}
+		return data[0], data[1 : i-1], nil
 	}
 }
