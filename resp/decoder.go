@@ -42,13 +42,17 @@ func (d *Decoder) next(bufmsg *Message) error {
 		msg.Type = StringHeader
 		msg.Status = string(line)
 		d.UpdatePos(true, len(line))
-		d.AppendNewMsg(msg)
+		if bufmsg == nil {
+			d.AppendNewMsg(msg)
+		}
 		return nil
 	case ErrorHeader:
 		msg.Type = ErrorHeader
 		msg.Error = errors.New(string(line))
 		d.UpdatePos(true, len(line))
-		d.AppendNewMsg(msg)
+		if bufmsg == nil {
+			d.AppendNewMsg(msg)
+		}
 		return nil
 	case IntegerHeader:
 		msg.Type = IntegerHeader
@@ -58,7 +62,9 @@ func (d *Decoder) next(bufmsg *Message) error {
 			d.UpdateStartPos(d.pos)
 			return err
 		}
-		d.AppendNewMsg(msg)
+		if bufmsg == nil {
+			d.AppendNewMsg(msg)
+		}
 		return nil
 	case BulkHeader:
 		var msgLen int
@@ -71,7 +77,9 @@ func (d *Decoder) next(bufmsg *Message) error {
 			msg.Type = BulkHeader
 			msg.IsNil = true
 			d.UpdatePos(true, len(line))
-			d.AppendNewMsg(msg)
+			if bufmsg == nil {
+				d.AppendNewMsg(msg)
+			}
 			return nil
 		}
 		d.UpdatePos(true, len(line))

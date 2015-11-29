@@ -245,3 +245,173 @@ func TestDecodeBulk(t *testing.T) {
 		t.Error("error new consume pos")
 	}
 }
+
+func TestArrayDecode(t *testing.T) {
+	var encoded []byte
+	var msgQ []*Message
+	var pos int
+	var err error
+
+	// Zero elements
+	encoded = []byte("*0\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if len(msgQ[0].Array) != 0 {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	}
+
+	// Null array
+	encoded = []byte("*-1\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if !msgQ[0].IsNil {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	}
+
+	// Array with two bulk string
+	encoded = []byte("*2\r\n$3\r\nget\r\n$5\r\nhello\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if len(msgQ[0].Array) != 2 {
+		t.Error("error array length")
+	} else if string(msgQ[0].Array[0].Bytes) != "get" ||
+		string(msgQ[0].Array[1].Bytes) != "hello" {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	}
+
+	// Array with three integers
+	encoded = []byte("*3\r\n:11\r\n:12\r\n:13\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if len(msgQ[0].Array) != 3 {
+		t.Error("error array length")
+	} else if msgQ[0].Array[0].Integer != 11 ||
+		msgQ[0].Array[1].Integer != 12 ||
+		msgQ[0].Array[2].Integer != 13 {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	}
+
+	// Array with two simple string
+	encoded = []byte("*2\r\n+OK\r\n+OK\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if len(msgQ[0].Array) != 2 {
+		t.Error("error array length")
+	} else if msgQ[0].Array[0].Status != "OK" || msgQ[0].Array[1].Status != "OK" {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	}
+
+	// Array of two integers and two bulk string
+	encoded = []byte("*4\r\n:11\r\n$5\r\nhello\r\n$2\r\ngo\r\n:13\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if len(msgQ[0].Array) != 4 {
+		t.Error("error array length")
+	} else if msgQ[0].Array[0].Integer != 11 ||
+		string(msgQ[0].Array[1].Bytes) != "hello" ||
+		string(msgQ[0].Array[2].Bytes) != "go" ||
+		msgQ[0].Array[3].Integer != 13 {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	}
+
+	// Array of two arrays
+	encoded = []byte("*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+foo\r\n-bar\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if len(msgQ[0].Array) != 2 {
+		t.Error("error array length")
+	} else if len(msgQ[0].Array[0].Array) != 3 || len(msgQ[0].Array[1].Array) != 2 {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	} else {
+		arr1 := msgQ[0].Array[0]
+		arr2 := msgQ[0].Array[1]
+		if arr1.Array[0].Integer != 1 || arr1.Array[1].Integer != 2 || arr1.Array[2].Integer != 3 {
+			t.Error("error array result")
+		}
+		if arr2.Array[0].Status != "foo" || arr2.Array[1].Error.Error() != "bar" {
+			t.Error("error array result")
+		}
+	}
+
+	// Array of a bulk string and an array
+	encoded = []byte("*2\r\n$1\r\n0\r\n*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if len(msgQ[0].Array) != 2 {
+		t.Error("error array length")
+	} else if msgQ[0].Array[0].Type != BulkHeader || len(msgQ[0].Array[1].Array) != 2 {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	} else {
+		arr1 := msgQ[0].Array[0]
+		arr2 := msgQ[0].Array[1]
+		if string(arr1.Bytes) != "0" {
+			t.Error("error array result")
+		}
+		if string(arr2.Array[0].Bytes) != "foo" || string(arr2.Array[1].Bytes) != "bar" {
+			t.Error("error array result")
+		}
+	}
+
+	// Array with nil
+	encoded = []byte("*3\r\n$3\r\nfoo\r\n$-1\r\n$3\r\nbar\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if len(msgQ[0].Array) != 3 {
+		t.Error("error array length")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	} else {
+		if string(msgQ[0].Array[0].Bytes) != "foo" {
+			t.Error("error array result")
+		}
+		if !msgQ[0].Array[1].IsNil {
+			t.Error("error array result")
+		}
+		if string(msgQ[0].Array[2].Bytes) != "bar" {
+			t.Error("error array result")
+		}
+	}
+}
