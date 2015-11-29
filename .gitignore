@@ -1,0 +1,6 @@
+*.log
+*.pid
+*.toml
+tags
+dump.rdb
+build/
