@@ -9,9 +9,7 @@ var (
 	ErrCrlfNotFound = errors.New("CRLF not found")
 
 	// ErrEmpayData is returnd is no data found before \r\n
-	// This error mpay happens when one independent request/reply is sepetated
-	// into two or more TCP packet
-	ErrEmpayData = errors.New("empay data before crlf")
+	ErrEmptyData = errors.New("empay data before crlf")
 
 	// ErrBulkendNotFound is returnd if read buffer is short than expected bulk
 	// string length.
@@ -21,11 +19,6 @@ var (
 
 	// ErrInvalidHeader is returned when unknown data prefix is found
 	ErrInvalidHeader = errors.New("invalid header")
-
-	// ErrBulkNotEnough is returnd data buffer length is shorter than bulk string expected
-	// This error mpay happens when one independent request/reply is sepetated
-	// into two or more TCP packet
-	ErrBulkNotEnough = errors.New("bulk string not complete")
 
 	// ErrRespData is returned when data breaks the RESP
 	ErrRespData = errors.New("invalid resp data")

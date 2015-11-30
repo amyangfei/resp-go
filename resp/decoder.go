@@ -26,7 +26,7 @@ func NewDecoder(data []byte) *Decoder {
 }
 
 func (d *Decoder) next(bufmsg *Message) error {
-	lineType, line, err := ParseLine(d.src[d.pos:], -1)
+	lineType, line, err := parseLine(d.src[d.pos:], -1)
 	if err != nil {
 		return err
 	}
@@ -41,29 +41,29 @@ func (d *Decoder) next(bufmsg *Message) error {
 	case StringHeader:
 		msg.Type = StringHeader
 		msg.Status = string(line)
-		d.UpdatePos(true, len(line))
+		d.updatePos(true, len(line))
 		if bufmsg == nil {
-			d.AppendNewMsg(msg)
+			d.appendNewMsg(msg)
 		}
 		return nil
 	case ErrorHeader:
 		msg.Type = ErrorHeader
 		msg.Error = errors.New(string(line))
-		d.UpdatePos(true, len(line))
+		d.updatePos(true, len(line))
 		if bufmsg == nil {
-			d.AppendNewMsg(msg)
+			d.appendNewMsg(msg)
 		}
 		return nil
 	case IntegerHeader:
 		msg.Type = IntegerHeader
 		msg.Integer, err = strconv.ParseInt(string(line), 10, 64)
-		d.UpdatePos(true, len(line))
+		d.updatePos(true, len(line))
 		if err != nil {
-			d.UpdateStartPos(d.pos)
+			d.updateStartPos(d.pos)
 			return err
 		}
 		if bufmsg == nil {
-			d.AppendNewMsg(msg)
+			d.appendNewMsg(msg)
 		}
 		return nil
 	case BulkHeader:
@@ -76,23 +76,23 @@ func (d *Decoder) next(bufmsg *Message) error {
 		if msgLen < 0 {
 			msg.Type = BulkHeader
 			msg.IsNil = true
-			d.UpdatePos(true, len(line))
+			d.updatePos(true, len(line))
 			if bufmsg == nil {
-				d.AppendNewMsg(msg)
+				d.appendNewMsg(msg)
 			}
 			return nil
 		}
-		d.UpdatePos(true, len(line))
-		_, bulkstr, err := ParseLine(d.src[d.pos:], msgLen)
-		d.UpdatePos(false, len(bulkstr))
+		d.updatePos(true, len(line))
+		_, bulkstr, err := parseLine(d.src[d.pos:], msgLen)
+		d.updatePos(false, len(bulkstr))
 		if err != nil {
-			d.UpdateStartPos(d.pos)
+			d.updateStartPos(d.pos)
 			return err
 		}
 		msg.Type = BulkHeader
 		msg.Bytes = bulkstr
 		if bufmsg == nil {
-			d.AppendNewMsg(msg)
+			d.appendNewMsg(msg)
 		}
 		return nil
 	case ArrayHeader:
@@ -106,12 +106,12 @@ func (d *Decoder) next(bufmsg *Message) error {
 		if arrLen < 0 {
 			msg.Type = ArrayHeader
 			msg.IsNil = true
-			d.UpdatePos(true, len(line))
-			d.AppendNewMsg(msg)
+			d.updatePos(true, len(line))
+			d.appendNewMsg(msg)
 			return nil
 		}
 		msg.Array = make([]*Message, arrLen)
-		d.UpdatePos(true, len(line))
+		d.updatePos(true, len(line))
 		for i := 0; i < arrLen; i++ {
 			msg.Array[i] = &Message{}
 			if err = d.next(msg.Array[i]); err != nil {
@@ -119,47 +119,36 @@ func (d *Decoder) next(bufmsg *Message) error {
 			}
 		}
 		if bufmsg == nil {
-			d.AppendNewMsg(msg)
+			d.appendNewMsg(msg)
 		}
 		return nil
 	}
 	return ErrInvalidHeader
 }
 
-func (d *Decoder) UpdateStartPos(pos int) {
+func (d *Decoder) updateStartPos(pos int) {
 	d.msgStartPos = pos
 }
 
-func (d *Decoder) AppendNewMsg(msg *Message) {
+func (d *Decoder) appendNewMsg(msg *Message) {
 	d.msgQ = append(d.msgQ, msg)
-	d.UpdateStartPos(d.pos)
+	d.updateStartPos(d.pos)
 }
 
-func (d *Decoder) UpdatePos(hasHeader bool, msgLen int) {
+func (d *Decoder) updatePos(hasHeader bool, msgLen int) {
 	d.pos += msgLen + 2
 	if hasHeader {
 		d.pos += 1
 	}
 }
 
-func Decode(data []byte) ([]*Message, int, error) {
-	d := NewDecoder(data)
-	for d.msgStartPos < len(data) {
-		err := d.next(nil)
-		if err != nil {
-			return d.msgQ, d.msgStartPos, err
-		}
-	}
-	return d.msgQ, d.msgStartPos, nil
-}
-
-// ParseLine find the CRLF and return lineType and line data.
+// parseLine find the CRLF and return lineType and line data.
 // If readLen is no less than zero, we don't parse the header type and read
 // readLen bytes directly and check if \r\n follows.
-func ParseLine(data []byte, readLen int) (lineType byte, line []byte, err error) {
+func parseLine(data []byte, readLen int) (lineType byte, line []byte, err error) {
 	if readLen >= 0 {
 		if len(data) < readLen+2 {
-			return 0, nil, ErrBulkNotEnough
+			return 0, nil, ErrBulkendNotFound
 		} else {
 			if data[readLen] != CR || data[readLen+1] != LF {
 				return 0, nil, ErrRespData
@@ -173,8 +162,24 @@ func ParseLine(data []byte, readLen int) (lineType byte, line []byte, err error)
 		} else if data[i-1] != CR {
 			return 0, nil, ErrCrlfNotFound
 		} else if i == 1 {
-			return 0, nil, ErrEmpayData
+			return 0, nil, ErrEmptyData
 		}
 		return data[0], data[1 : i-1], nil
 	}
+}
+
+func Decode(data []byte) ([]*Message, int, error) {
+	d := NewDecoder(data)
+	for d.msgStartPos < len(data) {
+		err := d.next(nil)
+		if err != nil {
+			switch err {
+			case ErrCrlfNotFound, ErrBulkendNotFound:
+				return d.msgQ, d.msgStartPos, err
+			default:
+				return d.msgQ, len(data), err
+			}
+		}
+	}
+	return d.msgQ, d.msgStartPos, nil
 }

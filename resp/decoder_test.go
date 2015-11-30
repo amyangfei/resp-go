@@ -158,17 +158,6 @@ func TestDecodeInteger(t *testing.T) {
 		t.Error("should contains one message")
 	} else if msgQ[0].Integer != 10 {
 		t.Error("error of integer result")
-	} else if pos != len(":10\r\n:11.1\r\n") {
-		t.Error("error new consume pos")
-	}
-	encoded = encoded[pos:]
-	msgQ, pos, err = Decode(encoded)
-	if err != nil {
-		t.Error(err)
-	} else if len(msgQ) != 1 {
-		t.Error("should contains one message")
-	} else if msgQ[0].Integer != 12 {
-		t.Error("error of integer result")
 	} else if pos != len(encoded) {
 		t.Error("error new consume pos")
 	}
@@ -413,5 +402,54 @@ func TestArrayDecode(t *testing.T) {
 		if string(msgQ[0].Array[2].Bytes) != "bar" {
 			t.Error("error array result")
 		}
+	}
+
+	// consecutive arrays
+	arr := "*2\r\n$3\r\nget\r\n$5\r\nhello\r\n"
+	encoded = []byte(arr + arr)
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 2 {
+		t.Error("should contains two messages")
+	} else if len(msgQ[0].Array) != 2 || len(msgQ[1].Array) != 2 {
+		t.Error("error sub array length")
+	} else if string(msgQ[0].Array[0].Bytes) != "get" ||
+		string(msgQ[0].Array[1].Bytes) != "hello" ||
+		string(msgQ[1].Array[0].Bytes) != "get" ||
+		string(msgQ[1].Array[1].Bytes) != "hello" {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	}
+
+	// A real example in redis
+	// MULTI
+	// GET a
+	// LRANGE l 0 -1
+	// EXEC
+	encoded = []byte("*1\r\n$5\r\nMULTI\r\n" +
+		"*2\r\n$3\r\nGET\r\n$1\r\na\r\n" +
+		"*4\r\n$6\r\nLRANGE\r\n$1\r\nl\r\n$1\r\n0\r\n$2\r\n-1\r\n" +
+		"*1\r\n$4\r\nEXEC\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 4 {
+		t.Error("should contains two messages")
+	} else if len(msgQ[0].Array) != 1 || len(msgQ[1].Array) != 2 ||
+		len(msgQ[2].Array) != 4 || len(msgQ[3].Array) != 1 {
+		t.Error("error sub array length")
+	} else if string(msgQ[0].Array[0].Bytes) != "MULTI" ||
+		string(msgQ[1].Array[0].Bytes) != "GET" ||
+		string(msgQ[1].Array[1].Bytes) != "a" ||
+		string(msgQ[2].Array[0].Bytes) != "LRANGE" ||
+		string(msgQ[2].Array[1].Bytes) != "l" ||
+		string(msgQ[2].Array[2].Bytes) != "0" ||
+		string(msgQ[2].Array[3].Bytes) != "-1" ||
+		string(msgQ[3].Array[0].Bytes) != "EXEC" {
+		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
 	}
 }
