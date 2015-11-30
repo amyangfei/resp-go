@@ -1,4 +1,7 @@
 ## resp-go
+
+[![Build Status](https://travis-ci.org/amyangfei/resp-go.svg?branch=master)](https://travis-ci.org/amyangfei/resp-go)
+
 This package is used for decoding data in RESP format from raw byte array.
 
 The resp-go supports continuous RESP format data which is often seen in redis pipeline scene. Besides it also supports decoding in lazy mode, which means the package can cache incomplete RESP data and wait for the rest data flow.
