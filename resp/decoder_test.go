@@ -84,6 +84,17 @@ func TestDecodeString(t *testing.T) {
 	} else if pos != len(encoded)-7 {
 		t.Error("error new consume pos")
 	}
+	newEncoded := append(encoded[pos:], []byte("\r\n")...)
+	msgQ, pos, err = Decode(newEncoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if msgQ[0].Status != "QUEUED" {
+		t.Error("error string result")
+	} else if pos != len(newEncoded) {
+		t.Error("error new consume pos")
+	}
 }
 
 func TestDecodeError(t *testing.T) {
@@ -182,7 +193,7 @@ func TestDecodeBulk(t *testing.T) {
 		t.Error("error new consume pos")
 	}
 
-	// string "$10\r\nhello\r\ngo\r\n"
+	// string "$9\r\nhello\r\ngo\r\n"
 	encoded = []byte("$9\r\nhello\r\ngo\r\n")
 	msgQ, pos, err = Decode(encoded)
 	if err != nil {
@@ -193,6 +204,46 @@ func TestDecodeBulk(t *testing.T) {
 		t.Error("error bulk result")
 	} else if pos != len(encoded) {
 		t.Error("error new consume pos")
+	}
+
+	// bulk string not complete "$9\r\nhello\r\n"
+	encoded = []byte("$9")
+	msgQ, pos, err = Decode(encoded)
+	if err != ErrCrlfNotFound {
+		t.Error(err)
+	} else if len(msgQ) != 0 {
+		t.Error("should contains no message")
+	} else if pos != 0 {
+		t.Errorf("error new consume pos: %d", pos)
+	}
+	encoded = append(encoded, []byte("\r\nhello\r\n")...)
+	msgQ, pos, err = Decode(encoded)
+	if err != ErrBulkendNotFound {
+		t.Error(err)
+	} else if len(msgQ) != 0 {
+		t.Error("should contains no message")
+	} else if pos != 0 {
+		t.Errorf("error new consume pos: %d", pos)
+	}
+	encoded = append(encoded, []byte("go")...)
+	msgQ, pos, err = Decode(encoded)
+	if err != ErrBulkendNotFound {
+		t.Error(err)
+	} else if len(msgQ) != 0 {
+		t.Error("should contains no message")
+	} else if pos != 0 {
+		t.Errorf("error new consume pos: %d", pos)
+	}
+	encoded = append(encoded, []byte("\r\n")...)
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains no message")
+	} else if bytes.Equal(msgQ[0].Bytes, []byte("hello\r\ngo")) == false {
+		t.Error("error bulk result")
+	} else if pos != len(encoded) {
+		t.Errorf("error new consume pos: %d", pos)
 	}
 
 	// empty string
@@ -449,6 +500,31 @@ func TestArrayDecode(t *testing.T) {
 		string(msgQ[2].Array[3].Bytes) != "-1" ||
 		string(msgQ[3].Array[0].Bytes) != "EXEC" {
 		t.Error("error array result")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	}
+
+	// array not complete
+	encoded = []byte("*2\r\n$3\r\nget\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != ErrCrlfNotFound {
+		t.Errorf("should return ErrCrlfNotFound error, not: %v", err)
+	} else if len(msgQ) != 0 {
+		t.Error("should contains no message")
+	} else if pos != 0 {
+		t.Error("error new consume pos")
+	}
+	encoded = append(encoded, []byte("$7\r\nmessage\r\n")...)
+	msgQ, pos, err = Decode(encoded)
+	if err != nil {
+		t.Error(err)
+	} else if len(msgQ) != 1 {
+		t.Error("should contains one message")
+	} else if len(msgQ[0].Array) != 2 {
+		t.Error("should contains an array with two elements")
+	} else if string(msgQ[0].Array[0].Bytes) != "get" ||
+		string(msgQ[0].Array[1].Bytes) != "message" {
+		t.Error("error string result")
 	} else if pos != len(encoded) {
 		t.Error("error new consume pos")
 	}

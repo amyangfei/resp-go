@@ -86,7 +86,9 @@ func (d *Decoder) next(bufmsg *Message) error {
 		_, bulkstr, err := parseLine(d.src[d.pos:], msgLen)
 		d.updatePos(false, len(bulkstr))
 		if err != nil {
-			d.updateStartPos(d.pos)
+			if !MaybeSegmentError(err) {
+				d.updateStartPos(d.pos)
+			}
 			return err
 		}
 		msg.Type = BulkHeader

@@ -6,6 +6,8 @@ import (
 
 var (
 	// ErrCrlfNotFound is returnd when no \r\n is found in a read buffer
+	// This error mpay happens when one independent request/reply is sepetated
+	// into two or more TCP packet
 	ErrCrlfNotFound = errors.New("CRLF not found")
 
 	// ErrEmpayData is returnd is no data found before \r\n
@@ -23,3 +25,12 @@ var (
 	// ErrRespData is returned when data breaks the RESP
 	ErrRespData = errors.New("invalid resp data")
 )
+
+func MaybeSegmentError(err error) bool {
+	switch err {
+	case ErrCrlfNotFound, ErrBulkendNotFound:
+		return true
+	default:
+		return false
+	}
+}
