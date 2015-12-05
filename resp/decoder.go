@@ -112,6 +112,7 @@ func (d *Decoder) next(bufmsg *Message) error {
 			d.appendNewMsg(msg)
 			return nil
 		}
+		msg.Type = ArrayHeader
 		msg.Array = make([]*Message, arrLen)
 		d.updatePos(true, len(line))
 		for i := 0; i < arrLen; i++ {
