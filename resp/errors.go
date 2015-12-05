@@ -26,6 +26,11 @@ var (
 	ErrRespData = errors.New("invalid resp data")
 )
 
+var (
+	// ErrInvalidInput is returned after any error encoding a message
+	ErrInvalidInput = errors.New("invalid input for encoding")
+)
+
 func MaybeSegmentError(err error) bool {
 	switch err {
 	case ErrCrlfNotFound, ErrBulkendNotFound:
