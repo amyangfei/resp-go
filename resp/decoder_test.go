@@ -529,3 +529,21 @@ func TestArrayDecode(t *testing.T) {
 		t.Error("error new consume pos")
 	}
 }
+
+func TestInvalidData(t *testing.T) {
+	var encoded []byte
+	var msgQ []*Message
+	var pos int
+	var err error
+
+	// invalid header
+	encoded = []byte("Ooops\r\n")
+	msgQ, pos, err = Decode(encoded)
+	if err != ErrInvalidHeader {
+		t.Error(err)
+	} else if len(msgQ) != 0 {
+		t.Error("should contains no message")
+	} else if pos != len(encoded) {
+		t.Error("error new consume pos")
+	}
+}
