@@ -23,13 +23,12 @@ func decodeEncodeTest(buf []byte, target string, t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	t.Logf("type of msg: %v", msg.Type)
 	newbuf, err := Marshal(msg)
 	if err != nil {
 		t.Error(err)
 	}
 	if bytes.Equal(newbuf, []byte(target)) == false {
-		t.Logf("newbuf is: %v, should be: %v", newbuf, []byte(target))
+		t.Logf("%v newbuf is: %v, should be: %v", string(newbuf), newbuf, []byte(target))
 		t.Error(errTestFailed)
 	}
 }
@@ -160,15 +159,19 @@ func TestEncodeDecodeZeroArray(t *testing.T) {
 func TestEncodeDecodeNil(t *testing.T) {
 	var buf []byte
 	var err error
-	var target string = "$-1\r\n"
+	var m *Message
 
-	if buf, err = Marshal(nil); err != nil {
+	m = new(Message)
+	m.SetNil()
+	m.Type = BulkHeader
+
+	if buf, err = Marshal(m); err != nil {
 		t.Fatal(err)
 	}
 
-	if bytes.Equal(buf, []byte(target)) == false {
+	if bytes.Equal(buf, []byte("$-1\r\n")) == false {
 		t.Fatal(errTestFailed)
 	}
 
-	decodeEncodeTest(buf, target, t)
+	decodeEncodeTest(buf, "$-1\r\n", t)
 }
